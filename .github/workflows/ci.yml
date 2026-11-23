@@ -15,14 +15,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      # No package-lock.json is committed (it must be generated with registry
-      # access), so we use `npm install` rather than `npm ci`. To switch to the
-      # stricter, reproducible `npm ci`, run `npm install` locally once, commit
-      # the generated package-lock.json, then re-add `cache: npm` above and
-      # change this to `npm ci`.
+      # Reproducible install. REQUIRES a committed package-lock.json — generate
+      # it once locally with `npm install` and commit it (see WINDOWS_SETUP.md)
+      # BEFORE the first push, or this step fails.
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Lint
         run: npm run lint
