@@ -6,7 +6,7 @@ Project: **Service360 (Academic Demo)**. The assignment lists five Phase 3 tasks
 |---|---|---|---|
 | 1 | Scaffold the application | Done | Next.js 14 (App Router) + TypeScript + Tailwind + Vitest — commit `d37765b`. |
 | 2 | Implement the core AI feature | Done | `lib/triage.ts` — Claude via Vercel AI SDK, zod-validated output, deterministic fallback — commit `a109618`. |
-| 3 | At least 5 meaningful commits | Done (11) | See commit list below (7 build + 4 review fixes). |
+| 3 | At least 5 meaningful commits | Done (13) | See commit list below (7 build + 6 review fixes). |
 | 4 | At least 3 unit tests | Done (2 files, 11 cases) | `tests/sla.test.ts`, `tests/triage.test.ts`. |
 | 5 | Check secrets and input validation | Done | Secret scan clean; no `.env` tracked; `.env.example` holds names only; zod validation on every input route. |
 
@@ -28,9 +28,11 @@ fix(ci): install dependencies without a committed lockfile
 fix(ai): default to a current, supported Claude model id
 fix: atomic ticket numbering + rate-limiting and input bounds on the public endpoint
 docs: note atomic numbering, rate limiting, and illustrative SLA
+fix(security+verify): least-privilege anon RLS, ai_source flag, maxTokens cost cap
+docs: RLS least-privilege, ai_source verification, cost controls
 ```
 
-(11 commits — full hashes shown in `git log --oneline`.)
+(13 commits — full hashes shown in `git log --oneline`.)
 
 ## Unit tests (requirement 4)
 

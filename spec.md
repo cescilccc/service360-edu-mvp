@@ -57,7 +57,7 @@ Pin exact versions in `package.json`. Do not call any LLM from the browser.
 
 See ARCHITECTURE.md §3 for the diagram. Tables: `site`, `room`, `asset`, `ticket`. Provide the schema as a Supabase migration (`supabase/migrations/0001_init.sql`) and a seed script (`supabase/seed.sql` or `scripts/seed.ts`).
 
-`ticket` fields the app must persist: `ticket_number`, `room_id`, `asset_id?`, `reporter_name?`, `reporter_contact?`, `source='QR'`, `issue_type`, `description`, `photo_url?`, `meeting_impact`, `priority`, `ai_suggested_priority`, `ai_suggested_issue_type`, `ai_likely_cause`, `ai_recurring_flag`, `ai_reasoning`, `status`, `created_at`, `response_due_at`, `resolution_due_at`, `responded_at?`, `resolved_at?`.
+`ticket` fields the app must persist: `ticket_number`, `room_id`, `asset_id?`, `reporter_name?`, `reporter_contact?`, `source='QR'`, `issue_type`, `description`, `photo_url?`, `meeting_impact`, `priority`, `ai_suggested_priority`, `ai_suggested_issue_type`, `ai_likely_cause`, `ai_recurring_flag`, `ai_reasoning`, `ai_source` (`ai`|`fallback`), `status`, `created_at`, `response_due_at`, `resolution_due_at`, `responded_at?`, `resolved_at?`.
 
 `ticket_number` format: `SR-YYYY-NNNNNN` (year + zero-padded sequence). It is generated **atomically by a Postgres sequence** used as the column default (see the migration), not counted in the app — so simultaneous submissions never collide.
 
@@ -127,6 +127,10 @@ The chosen `priority` stored on the ticket = the AI's `suggestedPriority` at cre
 - `PATCH /api/tickets/:id` — **auth**. Allows updating `priority` (recomputes deadlines) and `status` (sets `responded_at` on first move off `NEW`, `resolved_at` on `RESOLVED`).
 
 All server-side. Never expose the service role key or Anthropic key to the client.
+
+**RLS.** All reads/writes go through the server service-role key, so the **anon role gets no table policies** (least privilege) — the public report page resolves rooms server-side, not from the browser.
+
+**Verification signal.** Each ticket stores `ai_source` (`ai` or `fallback`), set by the server, so a real Claude response is distinguishable from the fallback via the dashboard badge or a SQL query (`select count(*) from ticket group by ai_source`).
 
 **Abuse protection (public `POST /api/report`).** A best-effort in-memory rate limit (per IP, fixed window) runs **before** any AI call, returning `429` with `Retry-After` when exceeded — this caps AI-cost exposure from bursts or loops. Inputs are zod-validated and length-capped (description ≤ 1000 chars), enums are bounded, and the AI call has a timeout + deterministic fallback. Note: in-memory limiting is per serverless instance; production should use a shared store (Upstash/Vercel KV) plus a hard spend cap on the Anthropic account.
 

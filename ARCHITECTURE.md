@@ -78,7 +78,7 @@ site (1) ───< room (1) ───< asset
 
 `sla_state` (`ON_TRACK | AT_RISK | BREACHED`) is **computed at read time** by the SLA engine from `created_at`, the due timestamps, and `responded_at` / `resolved_at` — it is not stored, so it is always current without a background job (acceptable for the MVP; v2 adds a scheduled evaluator for alerts).
 
-Row-Level Security: the `tickets` insert path for the public report is handled by a server route using the service role key; the browser never writes directly. The coordinator dashboard reads via an authenticated session.
+Row-Level Security: **all** data access goes through server routes using the service role key — room lookups, ticket create, and the coordinator's ticket reads/updates — which bypasses RLS. The browser uses the anon key only for coordinator Auth (sign-in), never to read these tables. Accordingly the **anon role is granted no table policies** (least privilege); authenticated policies are kept only as a safe default for any future direct client query.
 
 ---
 
@@ -87,7 +87,8 @@ Row-Level Security: the `tickets` insert path for the public report is handled b
 1. Client submits: selected `issue_type` (optional), free-text `description`, `meeting_impact`, and the `room` (resolved from the QR token, so the AI gets room type + installed assets).
 2. Server builds a prompt with the room context and the **embedded P1–P4 SLA definitions**, and calls Claude through the Vercel AI SDK `generateObject` with a strict output schema (zod).
 3. Claude returns `{ issueType, suggestedPriority, likelyCause, recurringIssue, reasoning }`.
-4. The output is schema-validated. On any validation or API failure, a **deterministic fallback** maps `meeting_impact → priority` (`LIVE_NOW→P1`, `WITHIN_HOUR→P2`, `TODAY→P3`, `NONE→P4`) so a ticket is never blocked by the AI.
+4. The output is schema-validated and the call is capped (`maxTokens`) to bound cost. On any validation or API failure, a **deterministic fallback** maps `meeting_impact → priority` (`LIVE_NOW→P1`, `WITHIN_HOUR→P2`, `TODAY→P3`, `NONE→P4`) so a ticket is never blocked by the AI.
+5. Every ticket records an **`ai_source`** of `ai` or `fallback`, set by the server (not the model), so a live Claude response is distinguishable from the fallback at a glance (dashboard badge) and by query.
 5. The SLA engine computes deadlines from the chosen priority; the ticket is inserted; the ticket number is returned.
 6. The coordinator can override the AI's priority at triage — the AI **suggests**, the human **decides**.
 
