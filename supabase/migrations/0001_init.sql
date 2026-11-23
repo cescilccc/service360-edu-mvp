@@ -36,9 +36,16 @@ create table asset (
   created_at timestamptz not null default now()
 );
 
+-- Atomic ticket numbering: the sequence guarantees unique numbers even under
+-- simultaneous submissions (nextval is atomic). No application-side counting.
+create sequence if not exists ticket_number_seq;
+
 create table ticket (
   id uuid primary key default gen_random_uuid(),
-  ticket_number text not null unique,
+  ticket_number text not null unique default (
+    'SR-' || to_char((now() at time zone 'utc'), 'YYYY') || '-' ||
+    lpad(nextval('ticket_number_seq')::text, 6, '0')
+  ),
   room_id uuid not null references room(id),
   asset_id uuid references asset(id),
   reporter_name text,

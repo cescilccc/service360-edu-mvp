@@ -4,12 +4,30 @@ import { resolveRoomByToken } from "@/lib/rooms";
 import { triage } from "@/lib/triage";
 import { computeDeadlines } from "@/lib/sla";
 import { getServiceClient } from "@/lib/supabase";
-import { nextTicketNumber } from "@/lib/ticket-number";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
+function clientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for") ?? "";
+  return fwd.split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 export async function POST(req: Request) {
-  // 1. Validate input.
+  // 0. Rate limit (best-effort, per-instance) BEFORE any expensive work,
+  //    so bursts can't run up AI cost. See lib/rate-limit.ts.
+  const rl = checkRateLimit(clientIp(req));
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) },
+      }
+    );
+  }
+
+  // 1. Validate input (zod; length-capped, enum-bounded).
   let body: unknown;
   try {
     body = await req.json();
@@ -36,11 +54,7 @@ export async function POST(req: Request) {
     issueTypeHint: input.issueTypeHint ?? null,
     description: input.description,
     meetingImpact: input.meetingImpact,
-    room: {
-      name: room.name,
-      roomType: room.roomType,
-      assets: room.assets,
-    },
+    room: { name: room.name, roomType: room.roomType, assets: room.assets },
   });
 
   // 4. SLA deadlines from the suggested priority.
@@ -50,44 +64,43 @@ export async function POST(req: Request) {
     now
   );
 
-  // 5. Ticket number (per-year sequence).
+  // 5. Insert. The DATABASE generates ticket_number atomically from a sequence
+  //    default (see migration), so concurrent submissions never collide.
   const db = getServiceClient();
-  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString();
-  const { count } = await db
+  const { data: inserted, error } = await db
     .from("ticket")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", yearStart);
-  const ticketNumber = nextTicketNumber(now, count ?? 0);
+    .insert({
+      room_id: room.id,
+      reporter_name: input.reporterName ?? null,
+      reporter_contact: input.reporterContact ?? null,
+      source: "QR",
+      issue_type: result.issueType,
+      description: input.description,
+      photo_url: input.photoUrl ?? null,
+      meeting_impact: input.meetingImpact,
+      priority: result.suggestedPriority,
+      ai_suggested_priority: result.suggestedPriority,
+      ai_suggested_issue_type: result.issueType,
+      ai_likely_cause: result.likelyCause,
+      ai_recurring_flag: result.recurringIssue,
+      ai_reasoning: result.reasoning,
+      status: "NEW",
+      created_at: now.toISOString(),
+      response_due_at: responseDueAt.toISOString(),
+      resolution_due_at: resolutionDueAt.toISOString(),
+    })
+    .select("ticket_number")
+    .single();
 
-  // 6. Insert.
-  const { error } = await db.from("ticket").insert({
-    ticket_number: ticketNumber,
-    room_id: room.id,
-    reporter_name: input.reporterName ?? null,
-    reporter_contact: input.reporterContact ?? null,
-    source: "QR",
-    issue_type: result.issueType,
-    description: input.description,
-    photo_url: input.photoUrl ?? null,
-    meeting_impact: input.meetingImpact,
-    priority: result.suggestedPriority,
-    ai_suggested_priority: result.suggestedPriority,
-    ai_suggested_issue_type: result.issueType,
-    ai_likely_cause: result.likelyCause,
-    ai_recurring_flag: result.recurringIssue,
-    ai_reasoning: result.reasoning,
-    status: "NEW",
-    created_at: now.toISOString(),
-    response_due_at: responseDueAt.toISOString(),
-    resolution_due_at: resolutionDueAt.toISOString(),
-  });
-
-  if (error) {
+  if (error || !inserted) {
     return NextResponse.json(
       { error: "Could not create ticket" },
       { status: 500 }
     );
   }
 
-  return NextResponse.json({ ticketNumber }, { status: 201 });
+  return NextResponse.json(
+    { ticketNumber: inserted.ticket_number },
+    { status: 201 }
+  );
 }
