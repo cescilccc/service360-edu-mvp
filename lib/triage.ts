@@ -90,8 +90,24 @@ function timeout(ms: number): Promise<never> {
   );
 }
 
+/** Log only bounded error metadata; never serialize API errors or their messages. */
+function logTriageFallback(err: unknown): void {
+  const e = err as { name?: unknown; statusCode?: unknown; finishReason?: unknown; message?: unknown } | null;
+  const isTimeout = e?.message === "triage timeout";
+  console.error("[triage] AI path failed; using fallback", {
+    reason: isTimeout ? "TIMEOUT" : "AI_GENERATION_FAILED",
+    errorType: typeof e?.name === "string" ? e.name.slice(0, 80) : "UnknownError",
+    statusCode: typeof e?.statusCode === "number" ? e.statusCode : null,
+    finishReason: typeof e?.finishReason === "string" ? e.finishReason.slice(0, 40) : null,
+    timeoutMs: TIMEOUT_MS,
+  });
+}
+
 export async function triage(input: TriageInput): Promise<TriagedResult> {
-  if (!process.env.ANTHROPIC_API_KEY) return fallbackTriage(input);
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[triage] ANTHROPIC_API_KEY not set in this runtime → fallback");
+    return fallbackTriage(input);
+  }
   try {
     const result = (await Promise.race([
       generateObject({
@@ -99,14 +115,14 @@ export async function triage(input: TriageInput): Promise<TriagedResult> {
         schema: TriageResultSchema,
         system: SYSTEM_PROMPT,
         prompt: buildPrompt(input),
-        temperature: 0.1,
         maxTokens: 400, // cost control: triage output is small and structured
       }),
       timeout(TIMEOUT_MS),
     ])) as { object: unknown };
     const object = TriageResultSchema.parse(result.object);
     return { ...object, source: "ai" };
-  } catch {
+  } catch (err) {
+    logTriageFallback(err);
     return fallbackTriage(input);
   }
 }
