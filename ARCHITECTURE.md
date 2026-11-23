@@ -97,7 +97,7 @@ This keeps the AI inside a workflow with real domain value and degrades graceful
 
 ## 5. SLA engine
 
-Pure, side-effect-free, and the most heavily unit-tested part of the system.
+Pure, side-effect-free, and the most heavily unit-tested part of the system. SLA values are **illustrative** (see `lib/sla-policy.ts`), not a real client's SLA.
 
 - `computeDeadlines(priority, createdAt)` → `{ responseDueAt, resolutionDueAt }`.
   - P1 uses a **calendar clock** (critical — 15–30 min response, 4 hr resolution; we encode response at 30 min).
@@ -121,7 +121,9 @@ The SLA values live in a single `sla-policy.ts` constant object so they read as 
 ## 7. Security & privacy notes
 
 - Claude is called server-side only; the Anthropic key is never shipped to the client.
-- The public report route accepts untrusted input: validate and length-cap `description`, constrain `issue_type` and `meeting_impact` to known enums, and treat the QR token as an opaque lookup key (no raw DB ids in URLs).
+- The public report route accepts untrusted input: validate and length-cap `description` (≤ 1000 chars), constrain `issue_type` and `meeting_impact` to known enums, and treat the QR token as an opaque lookup key (no raw DB ids in URLs).
+- **Rate limiting & AI-cost control:** a best-effort per-IP rate limit runs before the AI call (429 when exceeded), bounding burst/loop cost. In-memory limiting is per serverless instance; production should add a shared store (Upstash/Vercel KV) and a hard Anthropic spend cap.
+- **Ticket numbers are generated atomically** by a Postgres sequence default — no app-side counting — so concurrent submissions cannot produce duplicates.
 - Photo upload (optional) goes to a Supabase Storage bucket with a size/type limit; store only the URL on the ticket.
 - Reporter contact is optional and minimal; no account is created for reporters.
 - No secrets in the repo or in client bundles; CI includes a basic secret-scan step.

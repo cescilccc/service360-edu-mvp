@@ -6,7 +6,7 @@ Project: **Service360 (Academic Demo)**. The assignment lists five Phase 3 tasks
 |---|---|---|---|
 | 1 | Scaffold the application | Done | Next.js 14 (App Router) + TypeScript + Tailwind + Vitest — commit `d37765b`. |
 | 2 | Implement the core AI feature | Done | `lib/triage.ts` — Claude via Vercel AI SDK, zod-validated output, deterministic fallback — commit `a109618`. |
-| 3 | At least 5 meaningful commits | Done (7) | See commit list below. |
+| 3 | At least 5 meaningful commits | Done (11) | See commit list below (7 build + 4 review fixes). |
 | 4 | At least 3 unit tests | Done (2 files, 11 cases) | `tests/sla.test.ts`, `tests/triage.test.ts`. |
 | 5 | Check secrets and input validation | Done | Secret scan clean; no `.env` tracked; `.env.example` holds names only; zod validation on every input route. |
 
@@ -24,9 +24,13 @@ feat: AI triage via Vercel AI SDK with schema validation and deterministic fallb
 feat: public QR report flow and POST /api/report with SLA deadlines
 feat: coordinator dashboard, Supabase auth, and tickets API (GET/PATCH)
 test: SLA + triage unit tests; add CI workflow, README, and docs
+fix(ci): install dependencies without a committed lockfile
+fix(ai): default to a current, supported Claude model id
+fix: atomic ticket numbering + rate-limiting and input bounds on the public endpoint
+docs: note atomic numbering, rate limiting, and illustrative SLA
 ```
 
-(7 commits — full hashes shown in `git log --oneline`.)
+(11 commits — full hashes shown in `git log --oneline`.)
 
 ## Unit tests (requirement 4)
 
