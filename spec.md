@@ -130,7 +130,7 @@ The chosen `priority` stored on the ticket = the AI's `suggestedPriority` at cre
 
 All server-side. Never expose the service role key or Anthropic key to the client.
 
-**RLS.** All reads/writes go through the server service-role key, so the **anon role gets no table policies** (least privilege) — the public report page resolves rooms server-side, not from the browser.
+**RLS.** All reads/writes go through the server service-role key, so **neither anon nor authenticated roles get any table policy** — with RLS on and no policy, direct client access is denied. This prevents a signed-in non-coordinator from reading/updating tickets directly and bypassing the coordinator-only API. Asserted by `tests/rls.test.ts`.
 
 **Verification signal.** Each ticket stores `ai_source` (`ai` or `fallback`), set by the server, so a real Claude response is distinguishable from the fallback via the dashboard badge or a SQL query (`select count(*) from ticket group by ai_source`).
 

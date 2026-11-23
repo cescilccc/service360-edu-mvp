@@ -6,7 +6,7 @@ Project: **Service360 (Academic Demo)**. The assignment lists five Phase 3 tasks
 |---|---|---|---|
 | 1 | Scaffold the application | Done | Next.js 14 (App Router) + TypeScript + Tailwind + Vitest — commit `d37765b`. |
 | 2 | Implement the core AI feature | Done | `lib/triage.ts` — Claude via Vercel AI SDK, zod-validated output, deterministic fallback — commit `a109618`. |
-| 3 | At least 5 meaningful commits | Done (17) | See commit list below (7 build + 10 review fixes). |
+| 3 | At least 5 meaningful commits | Done (21) | See commit list below (7 build + 14 review fixes). |
 | 4 | At least 3 unit tests | Done (2 files, 11 cases) | `tests/sla.test.ts`, `tests/triage.test.ts`. |
 | 5 | Check secrets and input validation | Done | Secret scan clean; no `.env` tracked; `.env.example` holds names only; zod validation on every input route. |
 
@@ -34,15 +34,20 @@ feat(security): coordinator-only authorization for ticket APIs
 test: coordinator authorization (unauthorized / authenticated / coordinator)
 ci: restore npm ci (requires committed lockfile)
 docs: coordinator authz, Windows setup, checklist
+fix(security): deny direct table access — remove authenticated RLS policies
+feat(security): require server-verified, email-confirmed identity in coordinator authz
+test: assert RLS denies direct anon/authenticated table access
+docs: direct-DB-access denial and verified-email authz
 ```
 
-(17 commits — full hashes shown in `git log --oneline`.)
+(21 commits — full hashes shown in `git log --oneline`.)
 
 ## Unit tests (requirement 4)
 
 - `tests/sla.test.ts` — P1–P4 deadline computation, the business-hours clock across overnight and weekend boundaries, and On Track / At Risk / Breached state transitions.
 - `tests/triage.test.ts` — triage output schema (accepts valid, rejects malformed), the deterministic fallback, and the `ai_source` flag. The LLM is mocked, so no live calls run in CI.
-- `tests/authz.test.ts` — coordinator authorization: unauthorized (no/invalid token → UNAUTHENTICATED), ordinary authenticated user (→ FORBIDDEN), coordinator on the allow-list (→ AUTHORIZED), and bypass resistance (token claims don't matter).
+- `tests/authz.test.ts` — coordinator authorization: unauthorized (no/invalid token → UNAUTHENTICATED), ordinary authenticated user (→ FORBIDDEN), **coordinator with unverified email (→ FORBIDDEN)**, verified coordinator on the allow-list (→ AUTHORIZED), and bypass resistance (token claims don't matter).
+- `tests/rls.test.ts` — asserts the migration's RLS posture denies direct database access: RLS enabled on every table and **no policy grants anon or authenticated roles access** (so direct browser queries can't bypass the coordinator-only API).
 
 ## Secrets & input validation (requirement 5)
 

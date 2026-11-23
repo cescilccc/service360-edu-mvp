@@ -80,7 +80,7 @@ site (1) ───< room (1) ───< asset
 
 Authorization: the ticket APIs are **coordinator-only**. `requireCoordinator` verifies the token server-side and checks the caller's Supabase-verified email against the `coordinator` allow-list table (service-role read) — `401`/`403`/proceed. It never trusts client-supplied roles or `user_metadata`, so forged claims can't bypass it. The pure decision function is unit-tested for unauthenticated, ordinary-authenticated, and coordinator cases.
 
-Row-Level Security: **all** data access goes through server routes using the service role key — room lookups, ticket create, and the coordinator's ticket reads/updates — which bypasses RLS. The browser uses the anon key only for coordinator Auth (sign-in), never to read these tables. Accordingly the **anon role is granted no table policies** (least privilege); authenticated policies are kept only as a safe default for any future direct client query.
+Row-Level Security: **all** data access goes through server routes using the service role key — room lookups, ticket create, and the coordinator's ticket reads/updates — which bypasses RLS. The browser uses the anon key only for coordinator Auth (sign-in), never to read these tables. Accordingly **neither the anon nor the authenticated role is granted any table policy**: with RLS enabled and no matching policy, both are denied direct select/insert/update/delete. This deliberately stops a signed-in but non-coordinator user from reading or updating tickets directly from the browser and bypassing the coordinator-only API authorization. A migration-level test (`tests/rls.test.ts`) asserts this posture.
 
 ---
 
