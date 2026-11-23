@@ -90,16 +90,106 @@ function timeout(ms: number): Promise<never> {
   );
 }
 
-/** Log only bounded error metadata; never serialize API errors or their messages. */
+// --- Sanitized fallback diagnostics -----------------------------------------
+// The classifier reads the provider message/body IN MEMORY only to map it to a
+// bounded token from an explicit allowlist. It NEVER logs raw provider messages,
+// response bodies, headers, request bodies, prompts, API keys, or personal data.
+
+// Allowlist of Anthropic error categories we are willing to log verbatim. Any
+// value outside this set is logged as "other".
+const ALLOWED_ERROR_CATEGORIES = new Set<string>([
+  "invalid_request_error",
+  "authentication_error",
+  "permission_error",
+  "not_found_error",
+  "request_too_large",
+  "rate_limit_error",
+  "api_error",
+  "overloaded_error",
+  "billing_error",
+]);
+
+// Ordered allowlist of parameter labels and the substrings that map to each.
+// Only the label (left side) is ever logged — never the matched text.
+const PARAM_CLASSIFIERS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ["temperature", ["temperature"]],
+  ["top_p", ["top_p"]],
+  ["top_k", ["top_k"]],
+  ["tool_choice", ["tool_choice", "forced tool"]],
+  ["max_tokens", ["max_tokens"]],
+  ["thinking", ["thinking", "effort"]],
+  ["api_version", ["anthropic-version", "api version"]],
+  ["model", ["model:", "not found", "does not exist"]],
+];
+
+type FallbackReason =
+  | "api_400"
+  | "api_other"
+  | "timeout"
+  | "no_object"
+  | "unknown";
+
+interface ClassifiedError {
+  reason: FallbackReason;
+  statusCode?: number;
+  category: string; // allowlisted Anthropic category, else "other"
+  rejectedParam: string; // allowlisted param label, else "unclassified"
+}
+
+function classifyTriageError(err: unknown): ClassifiedError {
+  // Our own timeout error — a fixed constant string matched to a bounded label.
+  if (err instanceof Error && err.message === "triage timeout") {
+    return { reason: "timeout", category: "n/a", rejectedParam: "n/a" };
+  }
+
+  const e = err as {
+    name?: string;
+    statusCode?: number;
+    responseBody?: string;
+    data?: { error?: { type?: string; message?: string } };
+  };
+
+  // Read message/body IN MEMORY only to classify; neither is ever logged.
+  const haystack = (
+    e?.data?.error?.message ??
+    e?.responseBody ??
+    ""
+  ).toLowerCase();
+
+  const rawType = e?.data?.error?.type ?? "";
+  const category = ALLOWED_ERROR_CATEGORIES.has(rawType) ? rawType : "other";
+
+  let rejectedParam = "unclassified";
+  for (const [label, needles] of PARAM_CLASSIFIERS) {
+    if (needles.some((n) => haystack.includes(n))) {
+      rejectedParam = label;
+      break;
+    }
+  }
+
+  let reason: FallbackReason = "unknown";
+  if (e?.statusCode === 400) reason = "api_400";
+  else if (typeof e?.statusCode === "number") reason = "api_other";
+  else if (e?.name === "AI_NoObjectGeneratedError") reason = "no_object";
+
+  return { reason, statusCode: e?.statusCode, category, rejectedParam };
+}
+
+/**
+ * Logs ONLY bounded, allowlisted tokens describing why the AI path fell back:
+ * the configured model id, a reason enum, the HTTP status code, an allowlisted
+ * error category, and an allowlisted rejected-parameter label. No raw provider
+ * message/body/headers, request body, prompt, key, or personal data is logged.
+ */
 function logTriageFallback(err: unknown): void {
-  const e = err as { name?: unknown; statusCode?: unknown; finishReason?: unknown; message?: unknown } | null;
-  const isTimeout = e?.message === "triage timeout";
-  console.error("[triage] AI path failed; using fallback", {
-    reason: isTimeout ? "TIMEOUT" : "AI_GENERATION_FAILED",
-    errorType: typeof e?.name === "string" ? e.name.slice(0, 80) : "UnknownError",
-    statusCode: typeof e?.statusCode === "number" ? e.statusCode : null,
-    finishReason: typeof e?.finishReason === "string" ? e.finishReason.slice(0, 40) : null,
-    timeoutMs: TIMEOUT_MS,
+  const c = classifyTriageError(err);
+  console.error("[triage] AI path failed → fallback", {
+    model: MODEL, // our own constant model id
+    reason: c.reason, // bounded enum
+    statusCode: c.statusCode, // number | undefined
+    category: c.category, // allowlisted, else "other"
+    rejectedParam: c.rejectedParam, // allowlisted, else "unclassified"
+    timeoutMs: TIMEOUT_MS, // constant
   });
 }
 
@@ -115,6 +205,9 @@ export async function triage(input: TriageInput): Promise<TriagedResult> {
         schema: TriageResultSchema,
         system: SYSTEM_PROMPT,
         prompt: buildPrompt(input),
+        // No `temperature` / `top_p` / `top_k`: Claude 5.x models reject
+        // non-default sampling params with HTTP 400. Determinism comes from the
+        // forced-tool structured output and the bounded schema.
         maxTokens: 400, // cost control: triage output is small and structured
       }),
       timeout(TIMEOUT_MS),
