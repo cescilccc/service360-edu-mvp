@@ -6,7 +6,7 @@ Project: **Service360 (Academic Demo)**. The assignment lists five Phase 3 tasks
 |---|---|---|---|
 | 1 | Scaffold the application | Done | Next.js 14 (App Router) + TypeScript + Tailwind + Vitest — commit `d37765b`. |
 | 2 | Implement the core AI feature | Done | `lib/triage.ts` — Claude via Vercel AI SDK, zod-validated output, deterministic fallback — commit `a109618`. |
-| 3 | At least 5 meaningful commits | Done (13) | See commit list below (7 build + 6 review fixes). |
+| 3 | At least 5 meaningful commits | Done (17) | See commit list below (7 build + 10 review fixes). |
 | 4 | At least 3 unit tests | Done (2 files, 11 cases) | `tests/sla.test.ts`, `tests/triage.test.ts`. |
 | 5 | Check secrets and input validation | Done | Secret scan clean; no `.env` tracked; `.env.example` holds names only; zod validation on every input route. |
 
@@ -30,14 +30,19 @@ fix: atomic ticket numbering + rate-limiting and input bounds on the public endp
 docs: note atomic numbering, rate limiting, and illustrative SLA
 fix(security+verify): least-privilege anon RLS, ai_source flag, maxTokens cost cap
 docs: RLS least-privilege, ai_source verification, cost controls
+feat(security): coordinator-only authorization for ticket APIs
+test: coordinator authorization (unauthorized / authenticated / coordinator)
+ci: restore npm ci (requires committed lockfile)
+docs: coordinator authz, Windows setup, checklist
 ```
 
-(13 commits — full hashes shown in `git log --oneline`.)
+(17 commits — full hashes shown in `git log --oneline`.)
 
 ## Unit tests (requirement 4)
 
 - `tests/sla.test.ts` — P1–P4 deadline computation, the business-hours clock across overnight and weekend boundaries, and On Track / At Risk / Breached state transitions.
-- `tests/triage.test.ts` — triage output schema (accepts valid, rejects malformed) and the deterministic fallback when the model call fails or no key is set. The LLM is mocked, so no live calls run in CI.
+- `tests/triage.test.ts` — triage output schema (accepts valid, rejects malformed), the deterministic fallback, and the `ai_source` flag. The LLM is mocked, so no live calls run in CI.
+- `tests/authz.test.ts` — coordinator authorization: unauthorized (no/invalid token → UNAUTHENTICATED), ordinary authenticated user (→ FORBIDDEN), coordinator on the allow-list (→ AUTHORIZED), and bypass resistance (token claims don't matter).
 
 ## Secrets & input validation (requirement 5)
 

@@ -123,8 +123,10 @@ The chosen `priority` stored on the ticket = the AI's `suggestedPriority` at cre
 ## 8. API routes
 
 - `POST /api/report` — **public**. Body validated by zod: `{ roomToken, issueTypeHint?, description, meetingImpact, reporterName?, reporterContact?, photoUrl? }`. Resolve room by `qr_token`; run `triage`; `computeDeadlines`; insert ticket with the service role key; return `{ ticketNumber }`. Reject unknown token (404) and invalid body (400).
-- `GET /api/tickets` — **auth**. Returns tickets with a computed `slaState` for each. Supports basic sort (urgency, then newest).
-- `PATCH /api/tickets/:id` — **auth**. Allows updating `priority` (recomputes deadlines) and `status` (sets `responded_at` on first move off `NEW`, `resolved_at` on `RESOLVED`).
+- `GET /api/tickets` — **coordinator-only**. Returns tickets with a computed `slaState` for each. Supports basic sort (urgency, then newest).
+- `PATCH /api/tickets/:id` — **coordinator-only**. Allows updating `priority` (recomputes deadlines) and `status` (sets `responded_at` on first move off `NEW`, `resolved_at` on `RESOLVED`).
+
+**Authorization.** A valid Supabase token is not enough — it only proves the caller is *some* user. Both ticket routes call `requireCoordinator`, which verifies the token server-side and checks the caller's **Supabase-verified email against the `coordinator` allow-list table** (read with the service role). Result → `401` (no/invalid token), `403` (authenticated but not a coordinator), or proceed. Authorization never reads client-supplied roles or `user_metadata`, so it can't be bypassed by forged claims.
 
 All server-side. Never expose the service role key or Anthropic key to the client.
 

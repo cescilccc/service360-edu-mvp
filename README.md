@@ -42,7 +42,13 @@ supabase/seed.sql
 
 The seed creates 3 fictional demo rooms with QR tokens: `gx-summit-boardroom`, `gx-horizon-training`, `gx-aspen-meeting`.
 
-Create a coordinator login in Supabase Auth (email/password) to access the dashboard.
+Create a coordinator login in Supabase Auth (email/password), then **authorize it** by adding its email to the allow-list (a valid Supabase user is not authorized by default):
+
+```sql
+insert into coordinator (email) values ('you@example.com');
+```
+
+Only emails in the `coordinator` table can read/update tickets via the dashboard/API.
 
 ## Run
 
