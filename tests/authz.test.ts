@@ -1,17 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { authorize, extractBearer, type AuthzDeps } from "../lib/auth";
 
-// Injected dependencies: a fake token verifier + allow-list.
-// "good"  -> a coordinator email; "user" -> an ordinary authenticated user;
-// anything else -> invalid token.
+// Injected dependencies (no network). Tokens:
+//   "coord"    -> coordinator, email verified
+//   "coord-nv" -> coordinator email but NOT verified
+//   "user"     -> ordinary authenticated user, verified
+//   anything else -> invalid token
 function deps(over: Partial<AuthzDeps> = {}): AuthzDeps {
   return {
-    verifyToken: async (t) =>
-      t === "good"
-        ? { email: "coord@demo.test" }
-        : t === "user"
-          ? { email: "random@demo.test" }
-          : null,
+    verifyToken: async (t) => {
+      if (t === "coord") return { email: "coord@demo.test", emailVerified: true };
+      if (t === "coord-nv")
+        return { email: "coord@demo.test", emailVerified: false };
+      if (t === "user")
+        return { email: "random@demo.test", emailVerified: true };
+      return null;
+    },
     isCoordinator: async (email) => email === "coord@demo.test",
     ...over,
   };
@@ -41,14 +45,16 @@ describe("authorize", () => {
     expect(await authorize("user", deps())).toBe("FORBIDDEN");
   });
 
-  it("AUTHORIZED for a coordinator on the allow-list", async () => {
-    expect(await authorize("good", deps())).toBe("AUTHORIZED");
+  it("FORBIDDEN for a coordinator email that is NOT verified", async () => {
+    expect(await authorize("coord-nv", deps())).toBe("FORBIDDEN");
+  });
+
+  it("AUTHORIZED for a verified coordinator on the allow-list", async () => {
+    expect(await authorize("coord", deps())).toBe("AUTHORIZED");
   });
 
   it("cannot be bypassed: only the server allow-list decides, not token claims", async () => {
-    // Even a valid, 'privileged-looking' token is FORBIDDEN unless the verified
-    // email is actually on the server-side allow-list.
     const d = deps({ isCoordinator: async () => false });
-    expect(await authorize("good", d)).toBe("FORBIDDEN");
+    expect(await authorize("coord", d)).toBe("FORBIDDEN");
   });
 });

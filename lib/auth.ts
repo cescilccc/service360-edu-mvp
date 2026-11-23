@@ -10,9 +10,15 @@ import { getServiceClient } from "./supabase";
 
 export type AuthzResult = "UNAUTHENTICATED" | "FORBIDDEN" | "AUTHORIZED";
 
+export interface VerifiedUser {
+  email: string;
+  /** Whether Supabase has confirmed this email (email_confirmed_at present). */
+  emailVerified: boolean;
+}
+
 export interface AuthzDeps {
   /** Verify the bearer token server-side and return the verified identity, or null. */
-  verifyToken: (token: string) => Promise<{ email: string } | null>;
+  verifyToken: (token: string) => Promise<VerifiedUser | null>;
   /** Check the server-side allow-list, keyed on the verified email. */
   isCoordinator: (email: string) => Promise<boolean>;
 }
@@ -38,6 +44,8 @@ export async function authorize(
   if (!token) return "UNAUTHENTICATED";
   const user = await deps.verifyToken(token);
   if (!user || !user.email) return "UNAUTHENTICATED";
+  // A valid session with an UNVERIFIED email is not trusted for authorization.
+  if (!user.emailVerified) return "FORBIDDEN";
   return (await deps.isCoordinator(user.email)) ? "AUTHORIZED" : "FORBIDDEN";
 }
 
@@ -47,10 +55,15 @@ export async function requireCoordinator(req: Request): Promise<AuthzResult> {
   return authorize(extractBearer(req.headers), {
     verifyToken: async (token) => {
       try {
+        // getUser validates the JWT server-side with the service role and
+        // returns the authoritative user record (not client-supplied claims).
         const { data, error } = await db.auth.getUser(token);
-        const email = data?.user?.email;
-        if (error || !email) return null;
-        return { email };
+        const user = data?.user;
+        if (error || !user?.email) return null;
+        const emailVerified = Boolean(
+          user.email_confirmed_at ?? user.confirmed_at
+        );
+        return { email: user.email, emailVerified };
       } catch {
         return null;
       }
