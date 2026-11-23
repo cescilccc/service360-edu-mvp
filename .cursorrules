@@ -1,0 +1,23 @@
+# .cursorrules — Service360 (Academic Demo)
+
+Read spec.md and ARCHITECTURE.md before coding; they are the source of truth. Build only the vertical slice: QR report -> AI triage -> ticket with live SLA -> coordinator dashboard. Do not build v2 features.
+
+## Stack
+Next.js 14 (App Router) + TypeScript (strict), Tailwind, Supabase (Postgres + Auth), Vercel AI SDK (`ai` + `@ai-sdk/anthropic`, Claude), zod, Vitest. Deploy: Vercel + GitHub Actions.
+
+## Hard rules
+- Server-only secrets: ANTHROPIC_API_KEY and SUPABASE_SERVICE_ROLE_KEY are used only in server route handlers / server modules. Never expose them to the client. Never call an LLM from the browser.
+- Validate every external input with zod. Length-cap free text. Constrain issue_type, meeting_impact, priority, status, room_type to shared enums in lib/enums.ts.
+- AI must degrade gracefully: lib/triage.ts always returns a valid TriageResult; on any model or schema failure, use the deterministic meetingImpact -> priority fallback (LIVE_NOW=P1, WITHIN_HOUR=P2, TODAY=P3, NONE=P4). A ticket must never fail to create because of the AI.
+- SLA logic in lib/sla.ts and lib/sla-policy.ts is pure (no I/O) and unit-tested. SLA constants live only in sla-policy.ts. Business-hours clock = Mon-Fri 09:00-18:00 Asia/Manila; P1 is calendar/wall-clock.
+- Address rooms by opaque qr_token, never raw DB ids in URLs.
+- Mobile-first for /report (reporters are on phones); dashboard can be desktop-first.
+
+## Do not
+- Do not add asset register, engineer app, preventive maintenance, spares, OEM cases, escalations, auto reports, notifications, or multi-client (all v2).
+- Do not commit secrets or real env values; keep .env.example with names only.
+- Do not deploy, run migrations on a live project, or change any hosted service unless explicitly asked.
+- Do not make live LLM calls in tests — mock them.
+
+## Done means
+npm run lint, typecheck, test, and build all pass; input validated; no secret in the client bundle; the relevant spec.md acceptance criterion met. Commit in small meaningful steps (project needs >=5 commits, >=3 Vitest tests).
