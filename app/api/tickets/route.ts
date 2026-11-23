@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthenticated } from "@/lib/auth";
+import { requireCoordinator } from "@/lib/auth";
 import { getServiceClient } from "@/lib/supabase";
 import { computeSlaState, type SlaState } from "@/lib/sla";
 import type { Priority } from "@/lib/enums";
@@ -14,8 +14,15 @@ const STATE_ORDER: Record<SlaState, number> = {
 const PRIORITY_ORDER: Record<Priority, number> = { P1: 0, P2: 1, P3: 2, P4: 3 };
 
 export async function GET(req: Request) {
-  if (!(await isAuthenticated(req))) {
+  const authz = await requireCoordinator(req);
+  if (authz === "UNAUTHENTICATED") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (authz === "FORBIDDEN") {
+    return NextResponse.json(
+      { error: "Forbidden: coordinators only" },
+      { status: 403 }
+    );
   }
 
   const db = getServiceClient();

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAuthenticated } from "@/lib/auth";
+import { requireCoordinator } from "@/lib/auth";
 import { getServiceClient } from "@/lib/supabase";
 import { ticketPatchSchema } from "@/lib/validation";
 import { computeDeadlines } from "@/lib/sla";
@@ -10,8 +10,15 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  if (!(await isAuthenticated(req))) {
+  const authz = await requireCoordinator(req);
+  if (authz === "UNAUTHENTICATED") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (authz === "FORBIDDEN") {
+    return NextResponse.json(
+      { error: "Forbidden: coordinators only" },
+      { status: 403 }
+    );
   }
 
   let body: unknown;

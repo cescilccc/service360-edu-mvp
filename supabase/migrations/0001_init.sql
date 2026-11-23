@@ -73,6 +73,14 @@ create table ticket (
 create index ticket_room_idx on ticket(room_id);
 create index ticket_created_idx on ticket(created_at desc);
 
+-- Coordinator allow-list. Authorization for the dashboard/ticket APIs checks
+-- membership here (keyed on the Supabase-verified email), read with the service
+-- role. Never trust client-supplied roles/metadata for authorization.
+create table coordinator (
+  email text primary key,
+  created_at timestamptz not null default now()
+);
+
 -- RLS. All data access in this app goes through the SERVER using the service
 -- role key (room lookups, ticket create, ticket reads/updates), which bypasses
 -- RLS. The browser only uses the anon key for coordinator Auth (sign-in),
@@ -84,6 +92,9 @@ alter table site enable row level security;
 alter table room enable row level security;
 alter table asset enable row level security;
 alter table ticket enable row level security;
+alter table coordinator enable row level security;
+-- `coordinator` has NO policies: only the server (service role) reads the
+-- allow-list; it is never exposed to anon or authenticated clients.
 
 -- Authenticated (coordinator) defaults. Not required by the current server-only
 -- data path, but a sane baseline if direct client reads are added later.

@@ -1,6 +1,11 @@
 -- Seed: FICTIONAL demonstration data only.
 -- No real client, site, room, or equipment information. Invented for an academic demo.
 
+-- IMPORTANT (authorization): after you create your coordinator user in Supabase
+-- Auth, authorize them by adding their email to the allow-list, e.g.:
+--   insert into coordinator (email) values ('you@example.com');
+-- Only emails in this table can read/update tickets via the dashboard/API.
+
 with s1 as (
   insert into site (code, name) values ('GX-TOWER', 'Globex HQ Tower') returning id
 ), s2 as (
