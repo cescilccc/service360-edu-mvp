@@ -67,6 +67,7 @@ describe("triage()", () => {
     const r = await triage({ ...baseInput, meetingImpact: "WITHIN_HOUR" });
     expect(r.suggestedPriority).toBe("P2");
     expect(r.reasoning).toContain("Fallback");
+    expect(r.source).toBe("fallback");
     delete process.env.ANTHROPIC_API_KEY;
   });
 
@@ -84,6 +85,7 @@ describe("triage()", () => {
     const r = await triage(baseInput);
     expect(r.issueType).toBe("NO_AUDIO");
     expect(r.suggestedPriority).toBe("P1");
+    expect(r.source).toBe("ai");
     delete process.env.ANTHROPIC_API_KEY;
   });
 
@@ -91,6 +93,7 @@ describe("triage()", () => {
     delete process.env.ANTHROPIC_API_KEY;
     const r = await triage(baseInput);
     expect(r.suggestedPriority).toBe("P1"); // LIVE_NOW
+    expect(r.source).toBe("fallback");
     expect(generateObject).not.toHaveBeenCalled();
   });
 });

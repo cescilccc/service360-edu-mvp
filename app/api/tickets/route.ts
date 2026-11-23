@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const { data, error } = await db
     .from("ticket")
     .select(
-      "id, ticket_number, issue_type, priority, status, meeting_impact, ai_suggested_priority, ai_likely_cause, ai_recurring_flag, created_at, resolution_due_at, responded_at, resolved_at, room:room_id(name)"
+      "id, ticket_number, issue_type, priority, status, meeting_impact, ai_suggested_priority, ai_likely_cause, ai_recurring_flag, ai_source, created_at, resolution_due_at, responded_at, resolved_at, room:room_id(name)"
     )
     .order("created_at", { ascending: false });
 
@@ -49,6 +49,7 @@ export async function GET(req: Request) {
       meetingImpact: t.meeting_impact as string,
       likelyCause: t.ai_likely_cause as string | null,
       recurring: t.ai_recurring_flag as boolean,
+      aiSource: (t.ai_source as string | null) ?? "fallback",
       createdAt: t.created_at as string,
       slaState,
     };

@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       ai_likely_cause: result.likelyCause,
       ai_recurring_flag: result.recurringIssue,
       ai_reasoning: result.reasoning,
+      ai_source: result.source, // 'ai' or 'fallback' — for verification
       status: "NEW",
       created_at: now.toISOString(),
       response_due_at: responseDueAt.toISOString(),

@@ -15,6 +15,7 @@ interface TicketDTO {
   status: string;
   likelyCause: string | null;
   recurring: boolean;
+  aiSource: string;
   createdAt: string;
   slaState: "ON_TRACK" | "AT_RISK" | "BREACHED";
 }
@@ -125,11 +126,27 @@ export default function Dashboard() {
                         {t.likelyCause}
                       </div>
                     )}
-                    {t.recurring && (
-                      <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 text-xs text-purple-700">
-                        recurring
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {t.recurring && (
+                        <span className="inline-block rounded bg-purple-100 px-1.5 text-xs text-purple-700">
+                          recurring
+                        </span>
+                      )}
+                      <span
+                        className={`inline-block rounded px-1.5 text-xs ${
+                          t.aiSource === "ai"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                        title={
+                          t.aiSource === "ai"
+                            ? "Triaged by the Claude API"
+                            : "Deterministic fallback (AI unavailable)"
+                        }
+                      >
+                        {t.aiSource === "ai" ? "AI triaged" : "fallback"}
                       </span>
-                    )}
+                    </div>
                   </td>
                   <td className="p-3">
                     <span

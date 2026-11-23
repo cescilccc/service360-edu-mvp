@@ -24,6 +24,13 @@ export const TriageResultSchema = z.object({
 });
 export type TriageResult = z.infer<typeof TriageResultSchema>;
 
+export type TriageSource = "ai" | "fallback";
+
+/** Triage result annotated with its source, set by the server (not the model). */
+export interface TriagedResult extends TriageResult {
+  source: TriageSource;
+}
+
 export interface TriageInput {
   issueTypeHint?: IssueType | null;
   description: string;
@@ -66,13 +73,14 @@ function buildPrompt(input: TriageInput): string {
     .join("\n");
 }
 
-export function fallbackTriage(input: TriageInput): TriageResult {
+export function fallbackTriage(input: TriageInput): TriagedResult {
   return {
     issueType: input.issueTypeHint ?? "OTHER",
     suggestedPriority: IMPACT_TO_PRIORITY[input.meetingImpact],
     likelyCause: "Automated triage unavailable; priority set by meeting impact.",
     recurringIssue: false,
     reasoning: "Fallback triage used (AI unavailable).",
+    source: "fallback",
   };
 }
 
@@ -82,7 +90,7 @@ function timeout(ms: number): Promise<never> {
   );
 }
 
-export async function triage(input: TriageInput): Promise<TriageResult> {
+export async function triage(input: TriageInput): Promise<TriagedResult> {
   if (!process.env.ANTHROPIC_API_KEY) return fallbackTriage(input);
   try {
     const result = (await Promise.race([
@@ -92,10 +100,12 @@ export async function triage(input: TriageInput): Promise<TriageResult> {
         system: SYSTEM_PROMPT,
         prompt: buildPrompt(input),
         temperature: 0.1,
+        maxTokens: 400, // cost control: triage output is small and structured
       }),
       timeout(TIMEOUT_MS),
     ])) as { object: unknown };
-    return TriageResultSchema.parse(result.object);
+    const object = TriageResultSchema.parse(result.object);
+    return { ...object, source: "ai" };
   } catch {
     return fallbackTriage(input);
   }
