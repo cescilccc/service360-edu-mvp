@@ -35,7 +35,10 @@ export interface TriageInput {
   };
 }
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest";
+// Current, cost-appropriate default (Claude 5.x generation). Override with
+// ANTHROPIC_MODEL. Haiku keeps per-triage cost low; use a Sonnet id for higher
+// quality if desired.
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-5-5";
 const TIMEOUT_MS = 12_000;
 
 const SYSTEM_PROMPT = `You triage audio-visual (AV) support issues for a managed-services team.
